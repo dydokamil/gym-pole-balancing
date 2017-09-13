@@ -11,7 +11,7 @@ BATCH_SIZE = 64
 OBSERVATION_SPACE = 4
 EPSILON_DECAY = .9999
 SUCCEED_RENDER_THRESHOLD = 100  # how many times to succeed before rendering?
-GAMMA = .8
+GAMMA = .9
 
 epsilon = 1.
 render = False
@@ -28,7 +28,7 @@ def get_model():
     #                         input_shape=(1, 4, 4)))
     # model.add(Flatten())
     model.add(Dense(128, activation='relu'))
-    model.add(Dense(64, activation='relu'))
+    model.add(Dense(128, activation='relu'))
     model.add(Dense(2, activation='linear'))
     adam = Adam()
     model.compile(loss='mse', optimizer=adam)
@@ -81,6 +81,7 @@ if __name__ == '__main__':
         s = np.stack((s, s, s, s))
         s = s.reshape((1, 4, 4))
         terminated = False
+        DD = []
         while not terminated:
             if render:
                 env.render()
@@ -91,9 +92,17 @@ if __name__ == '__main__':
             # add the new frame to the transition array
             s_prime = np.vstack((s[0, 1:], s_prime))
             s_prime = s_prime.reshape((1, 4, 4))
-            save_exp_replay(s, a, r, s_prime, terminated)
+            # save_exp_replay(s, a, r, s_prime, terminated)
+            DD.append((s, a, r, s_prime, terminated))
             s = s_prime
             i += 1
+
+        rewards = []
+        for (i, (_, _, r, _, _)) in enumerate(reversed(DD)):
+            r += GAMMA ** (i + 1)
+            rewards.append(r)
+        for ((s, a, r, s_prime, terminated), r) in zip(DD, rewards):
+            save_exp_replay(s, a, r, s_prime, terminated)
 
         print("Survived", i, 'steps. Epsilon:', epsilon)
         if i >= 200:
