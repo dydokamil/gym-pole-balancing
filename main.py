@@ -11,7 +11,7 @@ BATCH_SIZE = 64
 OBSERVATION_SPACE = 4
 EPSILON_DECAY = .9999
 SUCCEED_RENDER_THRESHOLD = 100  # how many times to succeed before rendering?
-GAMMA = .9
+GAMMA = .99
 
 epsilon = 1.
 render = False
@@ -27,7 +27,7 @@ def get_model():
     #                         activation='relu',
     #                         input_shape=(1, 4, 4)))
     # model.add(Flatten())
-    model.add(Dense(128, activation='relu'))
+    model.add(Dense(256, activation='relu'))
     model.add(Dense(128, activation='relu'))
     model.add(Dense(2, activation='linear'))
     adam = Adam()
@@ -36,15 +36,16 @@ def get_model():
     return model
 
 
-def save_exp_replay(s0, a, r, s1, t):
+def save_exp_replay(s0, a, r, s1, t, i):
     """
     :param s0 initial state
     :param a action taken
     :param r reward
     :param s1 next state
     :param t terminated?
+    :param i game_step
     """
-    D.append((s0, a, r, s1, t))
+    D.append((s0, a, r, s1, t, i))
 
 
 def get_exp_replay():
@@ -81,7 +82,6 @@ if __name__ == '__main__':
         s = np.stack((s, s, s, s))
         s = s.reshape((1, 4, 4))
         terminated = False
-        DD = []
         while not terminated:
             if render:
                 env.render()
@@ -92,17 +92,9 @@ if __name__ == '__main__':
             # add the new frame to the transition array
             s_prime = np.vstack((s[0, 1:], s_prime))
             s_prime = s_prime.reshape((1, 4, 4))
-            # save_exp_replay(s, a, r, s_prime, terminated)
-            DD.append((s, a, r, s_prime, terminated))
+            save_exp_replay(s, a, r, s_prime, terminated, i)
             s = s_prime
             i += 1
-
-        rewards = []
-        for (i, (_, _, r, _, _)) in enumerate(reversed(DD)):
-            r += GAMMA ** (i + 1)
-            rewards.append(r)
-        for ((s, a, r, s_prime, terminated), r) in zip(DD, rewards):
-            save_exp_replay(s, a, r, s_prime, terminated)
 
         print("Survived", i, 'steps. Epsilon:', epsilon)
         if i >= 200:
@@ -118,7 +110,7 @@ if __name__ == '__main__':
 
         X = np.zeros((len(batch), 4, 4))
         y = np.zeros((len(batch), 2))
-        for idx, (ss, aa, rr, ss_prime, terminated) in enumerate(batch):
+        for idx, (ss, aa, rr, ss_prime, terminated, ii) in enumerate(batch):
             X[idx] = ss
             ss = np.expand_dims(ss, axis=0)
             ss_prime = np.expand_dims(ss_prime, axis=0)
@@ -128,7 +120,7 @@ if __name__ == '__main__':
             if terminated:
                 tt = r
             else:
-                tt = r + GAMMA * np.max(Q_sa_prime[0])
+                tt = r + (GAMMA ** (ii + 1)) * np.max(Q_sa_prime[0])
 
             Q_sa[aa] = tt
             y[idx] = np.reshape(Q_sa, 2)
